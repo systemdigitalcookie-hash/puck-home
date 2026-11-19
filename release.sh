@@ -23,7 +23,7 @@ NEW=${1:-$((CUR+1))}
 echo "#define FW_VERSION $NEW" > $SK/version.h
 echo "Building v$NEW"
 rm -rf build
-arduino-cli compile --fqbn "$FQBN" --libraries repo/examples/Arduino-V3.2.0/libraries --output-dir build $SK
+arduino-cli compile --fqbn "$FQBN" --build-property "compiler.optimization_flags=-O2" --libraries repo/examples/Arduino-V3.2.0/libraries --output-dir build $SK
 
 mkdir -p dist; rm -f dist/*
 cp build/$SK.ino.bin dist/firmware.bin          # app-only, used by OTA

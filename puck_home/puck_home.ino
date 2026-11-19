@@ -17,6 +17,8 @@
 #include "version.h"
 #include "certs.h"
 
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);   // v4: was 8 KB; LVGL event chains run on loopTask
+
 #define _S(x) #x
 #define S(x) _S(x)
 #define FW_STR S(FW_VERSION)
@@ -110,6 +112,7 @@ static lv_obj_t *tv, *dots[3], *lbl_clock, *lbl_date, *lbl_wifi, *lbl_stat;
 #define NPAGES 3
 #define PG_CLOCK 1
 #define PG_SETTINGS 2
+static bool ui_settled = true;   // v4: tileview at rest (not mid-swipe); slow SD/I2C work waits for this
 static bool lock_rec = false;   // no page swipes while recording / saving
 static void nav_apply() { if (lock_rec) lv_obj_clear_flag(tv, LV_OBJ_FLAG_SCROLLABLE); else lv_obj_add_flag(tv, LV_OBJ_FLAG_SCROLLABLE); }
 #include "recorder_ui.h"
@@ -173,13 +176,13 @@ static void clock_tick() {   // 1 Hz
   if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED && t > (time_t)EPOCH_2026) rtc_write_epoch(t);
   if (t > (time_t)EPOCH_2026) {
     struct tm tm; localtime_r(&t, &tm); char b[40];
-    strftime(b, sizeof b, "%H:%M", &tm); lv_label_set_text(lbl_clock, b);
-    strftime(b, sizeof b, "%a, %d %b %Y", &tm); lv_label_set_text(lbl_date, b);
+    strftime(b, sizeof b, "%H:%M", &tm); ui_set_text(lbl_clock, b);
+    strftime(b, sizeof b, "%a, %d %b %Y", &tm); ui_set_text(lbl_date, b);
   }
   char w[64];
   if (WiFi.status() == WL_CONNECTED) snprintf(w, sizeof w, "Wi-Fi: %s", WiFi.SSID().c_str());
   else snprintf(w, sizeof w, "Wi-Fi: not connected");
-  lv_label_set_text(lbl_wifi, w);
+  ui_set_text(lbl_wifi, w);   // v4: no redraw when unchanged
 }
 
 void setup() {
@@ -200,20 +203,28 @@ void loop() {
   static uint32_t last_fast = 0, last_ui = 0, last_slow = 0;
   uint32_t now = millis();
   int sx = lv_obj_get_scroll_x(tv);
+  bool settled = sx % 360 == 0;
+  ui_settled = settled;
+  static bool want_slow = false;
   if (now - last_fast >= 33) { last_fast = now; ru_tick(now); sub_tick(); }   // ~30 Hz
   if (now - last_ui >= 100) {
     last_ui = now;
     int page = (sx + 180) / 360; if (page < 0) page = 0; if (page > NPAGES - 1) page = NPAGES - 1;
-    for (int i = 0; i < NPAGES; i++) lv_obj_set_style_bg_color(dots[i], lv_color_hex(i == page ? C_HOT : C_LINE), 0);
-    if (page != last_page) { last_page = page; last_slow = 0; if (page == 0) list_dirty = true; if (page != 0 && rd) rd_close(); }
+    static int dots_page = -1;   // v4: restyle dots only when the page changes
+    if (page != dots_page) { dots_page = page; for (int i = 0; i < NPAGES; i++) lv_obj_set_style_bg_color(dots[i], lv_color_hex(i == page ? C_HOT : C_LINE), 0); }
+    if (page != last_page) {
+      last_page = page; want_slow = true;   // v4: page work runs once the swipe settles, not mid-swipe
+      if (page == 0 && millis() - list_t > 300000) list_dirty = true;   // only re-read the SD folder if the list is stale
+      if (page != 0 && rd) rd_close();
+    }
     if (strcmp(shown_stat, status_txt)) { snprintf(shown_stat, sizeof shown_stat, "%s", status_txt); lv_label_set_text(lbl_stat, shown_stat); }
     if (!ota_lbl) shown_ota[0] = 0;
     else if (strcmp(shown_ota, status_txt)) { snprintf(shown_ota, sizeof shown_ota, "%s", status_txt); lv_label_set_text(ota_lbl, shown_ota); }
   }
-  if (now - last_slow >= 1000) {
+  if (now - last_slow >= 1000 || (want_slow && settled)) {
     last_slow = now;
     clock_tick();
-    if (last_page == PG_SETTINGS) settings_summaries();
+    if (settled) { want_slow = false; if (last_page == PG_SETTINGS) settings_summaries(); }
     sub_refresh();
   }
   Lvgl_Loop();

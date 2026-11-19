@@ -5,6 +5,10 @@ This is firmware for a Waveshare ESP32-S3-Touch-LCD-1.85B (round 360x360 touch s
 ## What's in v3 (pink restyle of v2, same features)
 - `theme.h`: the theme (colours, fonts, radii, dotted ring, drawing helpers). `art.h`: generated shapes.
 
+## What's in v4 (same look as v3)
+- Recorder: SD write/read-back self-test at boot (4-bit 20 MHz, then 1-bit 20/10/5 MHz), DMA-capable aligned write buffers, falls back to internal flash if the SD refuses the first write ("Saved to internal (SD error)"), SD status in Settings > Storage, cached file list and free space, SD writer on core 0.
+- Speed: one SPI transfer per display strip, millis() LVGL tick, 16 KB loop stack, -O2 build, labels/dots only redrawn on change, no SD or battery work mid-swipe.
+
 ## Pages and files
 - Swipe pages: **Recorder** (left), **Clock** (start page), **Settings** (right).
 - `recorder.cpp/.h`: microphone (ES7210) recording to WAV on the SD card (or internal flash), playback through the speaker (ES8311 + amp on GPIO9), save checks with exact error messages.

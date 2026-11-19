@@ -31,7 +31,11 @@
 #define EXAMPLE_LCD_BK_LIGHT_ON_LEVEL       (1)
 #define EXAMPLE_LCD_BK_LIGHT_OFF_LEVEL !EXAMPLE_LCD_BK_LIGHT_ON_LEVEL
 
-#define ESP_PANEL_HOST_SPI_MAX_TRANSFER_SIZE   (2048)
+// v16: one DMA transaction per LVGL strip (360x40x2 = 28800 B) instead of 15 x 2 KB chunks, so draw_bitmap() returns
+// right away and LVGL renders the next strip into the other buffer while this one is on the wire.
+// Must stay <= 32768 B (ESP32-S3 GPSPI max DMA transaction, 2^18 bits). esp_lcd waits for in-flight colour data
+// before sending the next command, so a buffer is never rewritten while DMA still reads it (two buffers).
+#define ESP_PANEL_HOST_SPI_MAX_TRANSFER_SIZE   (30 * 1024)
 
 extern uint8_t LCD_Backlight;
 

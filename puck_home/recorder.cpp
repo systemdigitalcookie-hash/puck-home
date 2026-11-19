@@ -98,19 +98,57 @@ static void scan_files(int *count, int *maxidx, char *lastname) {
   }
 }
 
+// v16: free/total space is cached here; the UI (Settings) reads the cache instead of hitting the SD card (f_getfree can be slow)
+static volatile uint64_t g_free_cache = 0, g_total_cache = 0;
 static uint32_t free_bytes() {
-  if (store == &SD_MMC) return (uint32_t)min<uint64_t>(SD_MMC.totalBytes() - SD_MMC.usedBytes(), 0xFFFFFFFFULL);
-  return (uint32_t)FFat.freeBytes();
+  uint64_t f = 0, t = 0;
+  if (store == &SD_MMC) { t = SD_MMC.totalBytes(); f = t - SD_MMC.usedBytes(); }
+  else if (store == &FFat) { t = FFat.totalBytes(); f = FFat.freeBytes(); }
+  g_free_cache = f; g_total_cache = t;
+  return (uint32_t)min<uint64_t>(f, 0xFFFFFFFFULL);
+}
+
+static bool sd_failed = false, sd_fellback = false;   // sd_failed: a write test / real write failed -> internal flash until reboot
+// 8 KB write + read-back through an internal, 4-byte-aligned DMA buffer (never PSRAM)
+static bool sd_selftest(int *err) {
+  uint8_t *b = (uint8_t *)heap_caps_aligned_alloc(4, 8192, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+  if (!b) { *err = ENOMEM; return false; }
+  for (int i = 0; i < 8192; i++) b[i] = (uint8_t)(i * 7 + 3);
+  bool ok = false; errno = 0;
+  File f = SD_MMC.open("/_selftest.bin", FILE_WRITE);
+  if (f) { ok = f.write(b, 8192) == 8192; *err = errno; f.close(); } else *err = errno ? errno : EIO;
+  if (ok) {
+    memset(b, 0, 8192); errno = 0;
+    File r = SD_MMC.open("/_selftest.bin", FILE_READ);
+    ok = r && r.read(b, 8192) == 8192; *err = errno;
+    if (r) r.close();
+    for (int i = 0; ok && i < 8192; i++) if (b[i] != (uint8_t)(i * 7 + 3)) ok = false;
+  }
+  SD_MMC.remove("/_selftest.bin");
+  heap_caps_free(b);
+  return ok;
+}
+static bool sd_mount_try() {   // 4-bit 20 MHz -> 1-bit 20 -> 10 -> 5 MHz; each must pass the write test
+  struct Cfg { bool one; int khz; } cfgs[4] = { {false, 20000}, {true, 20000}, {true, 10000}, {true, 5000} };
+  bool pins = SD_MMC.setPins(15, 14, 16, 17, 12, 13);
+  if (!pins) { snprintf(rec.sd, sizeof rec.sd, "SD pins error"); return false; }
+  int lasterr = 0; bool card = false;
+  for (auto &c : cfgs) {
+    SD_MMC.end();
+    if (!SD_MMC.begin("/sdcard", c.one, false, c.khz) || SD_MMC.cardType() == CARD_NONE) { SD_MMC.end(); continue; }
+    card = true;
+    int err = 0;
+    if (sd_selftest(&err)) { snprintf(rec.sd, sizeof rec.sd, "SD OK (%s %d MHz)", c.one ? "1-bit" : "4-bit", c.khz / 1000); Serial.printf("[sd] %s\n", rec.sd); return true; }
+    lasterr = err; Serial.printf("[sd] %s %d kHz failed write test, errno %d\n", c.one ? "1-bit" : "4-bit", c.khz, err);
+  }
+  SD_MMC.end();
+  if (card) { sd_failed = true; snprintf(rec.sd, sizeof rec.sd, "SD error %s, using internal", lasterr == EIO ? "EIO" : (lasterr == EROFS ? "read-only" : "write")); }
+  else snprintf(rec.sd, sizeof rec.sd, "No SD card");
+  return false;
 }
 
 static bool mount_storage() {
-  if (!sd_ok) {
-    bool pins = SD_MMC.setPins(15, 14, 16, 17, 12, 13);
-    sd_ok = SD_MMC.begin("/sdcard", false, false, 20000);          // 4-bit, 20 MHz
-    if (!sd_ok) sd_ok = SD_MMC.begin("/sdcard", true, false, 5000); // 1-bit, 5 MHz fallback
-    if (sd_ok && SD_MMC.cardType() == CARD_NONE) { SD_MMC.end(); sd_ok = false; }
-    snprintf(rec.sd, sizeof rec.sd, sd_ok ? "SD card ok" : (pins ? "no SD card" : "SD pins err"));
-  }
+  if (!sd_ok && !sd_failed) sd_ok = sd_mount_try();
   if (sd_ok) { store = &SD_MMC; strcpy(rec.storage, "SD"); }
   else {
     if (!ffat_ok) ffat_ok = FFat.begin(true);
@@ -158,7 +196,9 @@ static void capture_task(void *) {
 }
 
 static void writer_task(void *) {
-  static uint8_t blk[16384];
+  static uint8_t *blk = NULL; const uint32_t BLK_SZ = 16384;
+  if (!blk) blk = (uint8_t *)heap_caps_aligned_alloc(4, BLK_SZ, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);   // DMA-capable internal RAM, never PSRAM
+  if (!blk) { fail("no DMA buffer"); stop_req = true; }
   uint32_t last_hdr = 0;
   bool werr = false, hdr_live = true;
   rec_writer_alive = true;
@@ -166,11 +206,27 @@ static void writer_task(void *) {
     uint32_t avail = head - tail;
     bool finishing = cap_done;
     if (avail >= 8192 || (finishing && avail > 0)) {
-      uint32_t n = min<uint32_t>(avail, sizeof blk);
+      uint32_t n = blk ? min<uint32_t>(avail, BLK_SZ) : avail;
+      if (!blk) { tail += n; continue; }
       uint32_t off = tail % RING_SZ, first = min<uint32_t>(n, RING_SZ - off);
       memcpy(blk, ring + off, first); if (n > first) memcpy(blk + first, ring, n - first);
       errno = 0;
       size_t w = wf.write(blk, n);
+      if (w != n && wstore == &SD_MMC && data_bytes == 0 && !sd_fellback) {   // SD refused the very first write: move this recording to internal flash
+        Serial.printf("[rec] SD write failed (%u/%u, errno %d) -> falling back to internal flash\n", (unsigned)w, (unsigned)n, errno);
+        wf.close(); SD_MMC.remove(cur_path);
+        if (!ffat_ok) ffat_ok = FFat.begin(true);
+        if (ffat_ok) {
+          if (!FFat.exists("/rec")) FFat.mkdir("/rec");
+          wf = FFat.open(cur_path, FILE_WRITE); uint8_t h[44]; wav_header(h, 0);
+          if (wf && wf.write(h, 44) == 44) {
+            wstore = &FFat; store = &FFat; strcpy(rec.storage, "Flash"); sd_fellback = true; sd_failed = true; sd_ok = false;
+            snprintf(rec.sd, sizeof rec.sd, "SD error EIO, using internal");
+            start_free_bytes = (uint32_t)FFat.freeBytes();
+            errno = 0; w = wf.write(blk, n);
+          }
+        }
+      }
       if (w != n) { fail("write %u/%u B at %lus, errno %d", (unsigned)w, (unsigned)n, (unsigned long)(data_bytes / BYTES_PER_SEC), errno); werr = true; stop_req = true; }
       tail += n; data_bytes += w;               // v11: count what was really written (was: what was asked)
       rec.secs = data_bytes / BYTES_PER_SEC;
@@ -217,7 +273,7 @@ static void writer_task(void *) {
   if (chk && sz <= 44 && data_bytes > 0) fail("check: file %lu B, expected %lu B", (unsigned long)sz, (unsigned long)expect);
   int c, m; scan_files(&c, &m, rec.last);
   rec.count = c;
-  if (!fail_step[0]) put_msg("saved");
+  if (!fail_step[0]) put_msg(sd_fellback ? "Saved to internal (SD error)" : "saved");
   else {
     char b[sizeof rec.msg]; snprintf(b, sizeof b, "Save failed: %s%s", fail_step, kept ? " (partial file kept)" : "");
     put_msg(b);
@@ -313,7 +369,7 @@ void rec_start() {
   int c, maxidx; scan_files(&c, &maxidx, nullptr);
   char path[40]; int idx = maxidx + 1;
   do snprintf(path, sizeof path, "/rec/rec_%04d.wav", idx++); while (store->exists(path) && idx < 10000);   // never overwrite
-  strcpy(cur_path, path); wstore = store; fail_step[0] = 0;
+  strcpy(cur_path, path); wstore = store; fail_step[0] = 0; sd_fellback = false;
   start_free_bytes = free_bytes();
   if (start_free_bytes < 200000) { put_msg("storage full"); return; }
   wf = store->open(path, FILE_WRITE);
@@ -331,7 +387,7 @@ void rec_start() {
   put_msg("recording");
   rec.state = REC_RECORDING;
   // capture on core 0 (high prio, short bursts); writer on core 1 at low prio so slow flash/SD writes never starve capture
-  xTaskCreatePinnedToCore(writer_task, "wr", 8192, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(writer_task, "wr", 8192, NULL, 2, NULL, 0);   // v16: core 0 (was core 1, sharing time with the UI loop)
   xTaskCreatePinnedToCore(capture_task, "cap", 6144, NULL, 5, NULL, 0);
 }
 
@@ -553,13 +609,5 @@ bool talk_play_start(const int16_t *pcm, uint32_t samples) {
 
 void talk_play_stop() { tp_stop = true; }
 
-uint64_t rec_free_bytes() {
-  if (store == &SD_MMC) return SD_MMC.totalBytes() - SD_MMC.usedBytes();
-  if (store == &FFat) return FFat.freeBytes();
-  return 0;
-}
-uint64_t rec_total_bytes() {
-  if (store == &SD_MMC) return SD_MMC.totalBytes();
-  if (store == &FFat) return FFat.totalBytes();
-  return 0;
-}
+uint64_t rec_free_bytes() { return store ? g_free_cache : 0; }    // v16: cached (refreshed on mount, record start, save, delete)
+uint64_t rec_total_bytes() { return store ? g_total_cache : 0; }

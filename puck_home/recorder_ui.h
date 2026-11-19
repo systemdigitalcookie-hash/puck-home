@@ -15,6 +15,8 @@ static lv_obj_t *r_stage, *r_saved_lbl, *r_err_lbl;
 static RecFile files[40];
 static int nfiles = 0;
 static bool list_dirty = true;
+static uint32_t list_t = 0;
+static bool ru_sd_fb = false;   // v4: last save fell back from SD to internal flash   // v4: when the recordings list was last rebuilt
 static int list_seen_count = -1;
 
 static void fmt_mmss(char *o, size_t n, uint32_t s) {
@@ -50,7 +52,8 @@ static void ru_set(int s) {
   if (s == RU_SAVED) {
     char d[16], b[64]; fmt_mmss(d, sizeof d, ru_saved_secs);
     if (d[0] == '0' && d[2] != ':') memmove(d, d + 1, strlen(d));   // 00:42 -> 0:42
-    snprintf(b, sizeof b, "Saved %s to %s", d, !strcmp(rec.storage, "SD") ? "SD" : "flash");
+    if (ru_sd_fb) snprintf(b, sizeof b, "Saved %s to internal (SD error)", d);
+    else snprintf(b, sizeof b, "Saved %s to %s", d, !strcmp(rec.storage, "SD") ? "SD" : "flash");
     lv_label_set_text(r_saved_lbl, b);
   }
   if (s == RU_ERROR) lv_label_set_text(r_err_lbl, ru_err);
@@ -172,7 +175,7 @@ static void rd_tick() {
 // ---------- recent list ----------
 static void row_cb(lv_event_t *e) { rd_open((int)(intptr_t)lv_event_get_user_data(e)); }
 static void refresh_list() {
-  list_dirty = false;
+  list_dirty = false; list_t = millis();
   if (rec.state != REC_IDLE) return;
   nfiles = rec_list(files, 40);
   lv_obj_clean(r_list);
@@ -289,7 +292,8 @@ static void ru_tick(uint32_t now) {
   else if (st == REC_PAUSED && ru != RU_PAUSED) ru_set(RU_PAUSED);
   else if (st == REC_FINALIZING && ru != RU_SAVING) { ru_saved_secs = rec.secs; ru_set(RU_SAVING); }
   else if (st == REC_IDLE && (ru == RU_REC || ru == RU_PAUSED || ru == RU_SAVING)) {
-    if (!strcmp(rec.msg, "saved")) { ru_saved_secs = rec.secs; ru_set(RU_SAVED); }
+    ru_sd_fb = !strncmp(rec.msg, "Saved to internal", 17);   // v4: SD fallback is still a successful save
+    if (!strcmp(rec.msg, "saved") || ru_sd_fb) { ru_saved_secs = rec.secs; ru_set(RU_SAVED); }
     else ru_error(rec.msg);
   }
   uint32_t el = now - ru_t0;
@@ -309,7 +313,7 @@ static void ru_tick(uint32_t now) {
       if (el > 30000 && st == REC_FINALIZING) rec_force_idle("Save timed out. Restart the puck.");
       break;
     case RU_SAVED: if (el > 2000) ru_set(RU_READY); break;
-    case RU_READY: if (!rd && (list_dirty || rec.count != list_seen_count)) refresh_list(); break;
+    case RU_READY: if (!rd && ui_settled && (list_dirty || rec.count != list_seen_count)) refresh_list(); break;   // v4: never mid-swipe
   }
   rd_tick();
 }

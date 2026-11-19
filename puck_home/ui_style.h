@@ -31,6 +31,9 @@ static lv_obj_t *ui_label(lv_obj_t *p, const lv_font_t *f, uint32_t col, int w, 
   lv_label_set_text(l, txt);
   return l;
 }
+static void ui_set_text(lv_obj_t *l, const char *t) {   // v4: skip the relayout + redraw when the text is the same
+  if (l && strcmp(lv_label_get_text(l), t)) lv_label_set_text(l, t);
+}
 static lv_obj_t *ui_title(lv_obj_t *p, const char *txt) {   // page heading, with a tiny heart under it
   lv_obj_t *l = ui_label(p, &lv_font_montserrat_20, C_TEXT, 0, txt);
   lv_obj_set_style_text_letter_space(l, 1, 0);

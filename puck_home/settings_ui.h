@@ -73,17 +73,17 @@ static void bat_info(int *soc, int *mv, int *ma, bool *present) {
 
 static void settings_summaries() {   // 1 Hz while the Settings page is visible
   char b[64];
-  snprintf(b, sizeof b, "Volume %d", (int)g_spk_volume); lv_label_set_text(set_sum[SET_SOUND], b);
-  snprintf(b, sizeof b, "Gain %d dB", (int)g_mic_gain); lv_label_set_text(set_sum[SET_MIC], b);
-  snprintf(b, sizeof b, "Brightness %d%%", g_bright); lv_label_set_text(set_sum[SET_DISPLAY], b);
+  snprintf(b, sizeof b, "Volume %d", (int)g_spk_volume); ui_set_text(set_sum[SET_SOUND], b);
+  snprintf(b, sizeof b, "Gain %d dB", (int)g_mic_gain); ui_set_text(set_sum[SET_MIC], b);
+  snprintf(b, sizeof b, "Brightness %d%%", g_bright); ui_set_text(set_sum[SET_DISPLAY], b);
   char gb[16]; fmt_gb(gb, sizeof gb, rec_free_bytes());
-  snprintf(b, sizeof b, "%s %s free", rec.storage[0] ? rec.storage : "-", gb); lv_label_set_text(set_sum[SET_STORAGE], b);
+  snprintf(b, sizeof b, "%s %s free", rec.storage[0] ? rec.storage : "-", gb); ui_set_text(set_sum[SET_STORAGE], b);
   if (WiFi.status() == WL_CONNECTED) snprintf(b, sizeof b, "%s", WiFi.SSID().c_str()); else snprintf(b, sizeof b, "Not connected");
-  lv_label_set_text(set_sum[SET_WIFI], b);
+  ui_set_text(set_sum[SET_WIFI], b);
   int soc, mv, ma; bool pr; bat_info(&soc, &mv, &ma, &pr);
   if (pr) snprintf(b, sizeof b, "%d%%%s", soc, ma > 20 ? ", charging" : ""); else snprintf(b, sizeof b, "No battery (USB power)");
-  lv_label_set_text(set_sum[SET_BATTERY], b);
-  snprintf(b, sizeof b, "Firmware v%d", FW_VERSION); lv_label_set_text(set_sum[SET_ABOUT], b);
+  ui_set_text(set_sum[SET_BATTERY], b);
+  snprintf(b, sizeof b, "Firmware v%d", FW_VERSION); ui_set_text(set_sum[SET_ABOUT], b);
 }
 
 // ---------- sub-screens ----------
@@ -179,20 +179,20 @@ static void sub_refresh() {   // 1 Hz live values
   char b[64];
   if (sub_kind == SET_STORAGE) {
     char f[16], t[16]; fmt_gb(f, sizeof f, rec_free_bytes()); fmt_gb(t, sizeof t, rec_total_bytes());
-    lv_label_set_text(sub_val[0], !strcmp(rec.storage, "SD") ? "SD card" : "Internal flash");
-    snprintf(b, sizeof b, "%s of %s", f, t); lv_label_set_text(sub_val[1], b);
-    fmt_dur(f, sizeof f, rec.free_secs); lv_label_set_text(sub_val[2], f);
-    snprintf(b, sizeof b, "%d", rec.count); lv_label_set_text(sub_val[3], b);
+    ui_set_text(sub_val[0], rec.sd[0] ? rec.sd : (!strcmp(rec.storage, "SD") ? "SD card" : "Internal flash"));
+    snprintf(b, sizeof b, "%s of %s", f, t); ui_set_text(sub_val[1], b);
+    fmt_dur(f, sizeof f, rec.free_secs); ui_set_text(sub_val[2], f);
+    snprintf(b, sizeof b, "%d", rec.count); ui_set_text(sub_val[3], b);
   } else if (sub_kind == SET_WIFI) {
     wf_status();
   } else if (sub_kind == SET_BATTERY) {
     int soc, mv, ma; bool pr; bat_info(&soc, &mv, &ma, &pr);
     if (pr) {
-      snprintf(b, sizeof b, "%d%%", soc); lv_label_set_text(sub_val[0], b);
-      snprintf(b, sizeof b, "%.2f V", mv / 1000.f); lv_label_set_text(sub_val[1], b);
-      snprintf(b, sizeof b, "%+d mA", ma); lv_label_set_text(sub_val[2], b);
-      lv_label_set_text(sub_val[3], ma > 20 ? "Charging" : (ma < -20 ? "On battery" : "Full / idle"));
-    } else { lv_label_set_text(sub_val[0], "None"); lv_label_set_text(sub_val[1], "-"); lv_label_set_text(sub_val[2], "-"); lv_label_set_text(sub_val[3], "USB power"); }
+      snprintf(b, sizeof b, "%d%%", soc); ui_set_text(sub_val[0], b);
+      snprintf(b, sizeof b, "%.2f V", mv / 1000.f); ui_set_text(sub_val[1], b);
+      snprintf(b, sizeof b, "%+d mA", ma); ui_set_text(sub_val[2], b);
+      ui_set_text(sub_val[3], ma > 20 ? "Charging" : (ma < -20 ? "On battery" : "Full / idle"));
+    } else { ui_set_text(sub_val[0], "None"); ui_set_text(sub_val[1], "-"); ui_set_text(sub_val[2], "-"); ui_set_text(sub_val[3], "USB power"); }
   }
 }
 
