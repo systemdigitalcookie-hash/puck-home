@@ -2,11 +2,12 @@
 
 A tiny starter firmware for the **Waveshare ESP32-S3-Touch-LCD-1.85B** (a round 1.85" touch screen with a speaker, microphone and Wi-Fi).
 
-It does only four things:
-- Wi-Fi setup through a phone-friendly page, with no passwords in the code
-- Shows a big clock in Malaysia time (MYT, UTC+8), set over the internet
-- Shows the Wi-Fi status and the firmware version
-- **Updates itself over Wi-Fi** from this repo's GitHub releases
+Swipe left/right between three pages:
+- **Recorder**: tap to record, Pause/Resume, Stop. It saves WAV files to the microSD card, or internal flash if there's no card. Recent recordings are listed below. Tap one to play, pause or delete it.
+- **Clock**: a big clock in Malaysia time (MYT, UTC+8), with the Wi-Fi status, a Check update button and the version.
+- **Settings**: Sound (volume, test speaker), Microphone (gain, level meter, 3 s mic test), Display (brightness), Storage (where recordings go, free space, recording time left, count), Wi-Fi (pick a network, saved networks), Battery, and About (version, Check update).
+
+It **updates itself over Wi-Fi** from this repo's GitHub releases. No passwords are stored in the code.
 
 It's a clean base. You can ask an AI coding tool to build apps on top of it, and each new version reaches the puck over Wi-Fi with no USB cable.
 
@@ -19,21 +20,21 @@ It's a clean base. You can ask an AI coding tool to build apps on top of it, and
 6. When it finishes, press **RESET** or replug the puck.
 
 ## 2. Connect Wi-Fi
-1. The puck shows "Join Wi-Fi: Puck-Home-Setup".
-2. On your phone, join the Wi-Fi network **Puck-Home-Setup**. A setup page opens. If it doesn't, go to `192.168.4.1`.
-3. Choose your home Wi-Fi, enter the password and save. The clock appears after a few seconds.
+**On the puck:** go to Settings > Wi-Fi and tap your network. Type the password on the keyboard (the eye button shows or hides it) and tap Connect. The puck remembers up to 5 networks and joins the strongest one it can see when it starts. To remove one, tap **Forget** under Saved networks. If a new network fails, the puck goes back to the previous one.
 
-Wi-Fi is remembered. To change it, take the puck away from the old Wi-Fi and the setup network comes back.
+**Fallback (first setup, or no saved network in range):** the puck shows "WiFi: join AP Puck-Home-Setup".
+1. On your phone, join the Wi-Fi network **Puck-Home-Setup**. A setup page opens. If it doesn't, go to `192.168.4.1`.
+2. Choose your home Wi-Fi, enter the password and save. That network is also added to the saved list.
 
 ## 3. Updates
 The puck checks for a newer version when it starts, and whenever you tap **Check update**. If the newest release has a higher number than the puck's version, it downloads `firmware.bin`, installs it and restarts.
 
 ## 4. Build your own app with AI
-Everything is in `puck_home/puck_home.ino`. The screen is built in `build_ui()` and refreshed in `loop()`.
+The pages are built in `build_ui()` in `puck_home/puck_home.ino` and refreshed in `loop()`. The Recorder is in `recorder_ui.h` and Settings in `settings_ui.h`. `AGENTS.md` lists every file.
 
 1. Install an AI coding tool such as Cursor, Claude Code or Codex.
 2. Open this repo's folder in it. It reads `AGENTS.md`, which has the rules.
-3. Ask for what you want, for example: *"Add a second page with a timer I can start and stop by touch."*
+3. Ask for what you want, for example: *"Add a page with a timer I can start and stop by touch."*
 4. Run `./release.sh`. It builds, publishes a new release, and the puck updates on its next check.
 
 ### Computer setup (Mac or Linux)
@@ -68,11 +69,15 @@ To check that it compiles without publishing, run the `arduino-cli compile ...` 
 | IMU (motion) | QMI8658 | I2C `0x6B` |
 | RTC clock | PCF85063 | I2C `0x51` |
 | Battery gauge | BQ27220 | I2C `0x55` |
-| SD card | | SDMMC |
+| SD card | | SDMMC: CLK 15, CMD 14, D0 16, D1 17, D2 12, D3 13 (FAT32) |
 
-Waveshare's wiki and example code: <https://github.com/waveshareteam/ESP32-S3-Touch-LCD-1.85B>. The ES7210 and ES8311 drivers and the audio examples live there. Copy them in when you want sound.
+Waveshare's wiki and example code: <https://github.com/waveshareteam/ESP32-S3-Touch-LCD-1.85B>. The ES7210/ES8311 audio drivers are already included in `puck_home/`.
 
 ## Limits
 - App size must stay under **3 MB**. `release.sh` stops if it's bigger.
 - Don't put passwords or keys in the code. This repo is public.
 - If updates stop working years from now, the HTTPS root certificates in `certs.h` may have expired. Ask an AI to refresh them.
+
+## Changes
+- **v2**: Recorder page (record/pause/stop, recent list, detail screen with play/pause/progress/delete). It saves with exact error messages and repairs the header when only the size check disagrees. Louder mics and speaker: both mics are summed with a soft limiter, mic gain is 0-60 dB (default 42), volume reaches +12 dB, and playback has auto-gain. Settings with the on-device Wi-Fi picker and Storage. The clock now keeps time offline with the RTC.
+- **v1**: Wi-Fi portal, clock, OTA.

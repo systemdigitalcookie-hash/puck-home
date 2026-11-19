@@ -2,13 +2,36 @@
 
 This is firmware for a Waveshare ESP32-S3-Touch-LCD-1.85B (round 360x360 touch screen). The owner is a beginner. Be careful and explain what you change.
 
-1. **Keep the OTA/Wi-Fi code intact.** `net_task`, `check_update`, `certs.h`, the `OTA_BASE`/`OTA_REPO` defines and the "Check update" button are how the puck gets updates without USB. If they break, the puck needs a USB cable again. You can add features around them. Don't remove or rewrite them.
+## What's in v2
+- Swipe pages: **Recorder** (left), **Clock** (start page), **Settings** (right).
+- `recorder.cpp/.h`: microphone (ES7210) recording to WAV on the SD card (or internal flash), playback through the speaker (ES8311 + amp on GPIO9), save checks with exact error messages.
+- `recorder_ui.h`: Recorder page. States are Ready, Recording, Paused, Saving, Saved and Error. It also has the recent recordings list and the detail screen (play/pause, progress, delete).
+- `settings_ui.h`: Settings list with sub-screens: Sound, Microphone, Display, Storage, Wi-Fi, Battery and About (Check update).
+- `wifi_net.h` + `wifi_ui.h`: the Wi-Fi picker. It scans in the background, takes a password on the on-screen keyboard and keeps up to 5 saved networks with Forget. At boot it joins the strongest saved network. The `Puck-Home-Setup` portal is only the fallback.
+- `puck_home.ino`: OTA (`check_update`, `net_task`), RTC, battery gauge, the clock page, `build_ui()` and `loop()`.
+
+## Rules
+1. **Keep the OTA/Wi-Fi code intact.** `net_task`, `check_update`, `certs.h`, the `OTA_BASE`/`OTA_REPO` defines, `wifi_net.h` and the "Check update" buttons are how the puck gets updates without USB. If they break, the puck needs a USB cable again. You can add features around them. Don't remove or rewrite them.
 2. **Always bump the version.** Never publish with an unchanged version, because the puck only updates when the remote `version.txt` is higher than its `FW_VERSION`. Use `./release.sh`, which bumps it for you.
-3. **Never commit secrets.** No Wi-Fi passwords, API keys, tokens or personal data in source, README or releases. Keep them in a gitignored `secrets.h`. This repo is public.
-4. **Keep the app under 3 MB** (partition `app3M_fat9M_16MB`). `release.sh` fails the build if `firmware.bin` is too big. Avoid big images and fonts in flash.
+3. **Never commit secrets.** No Wi-Fi passwords, API keys, tokens or personal data in source, README or releases. Wi-Fi passwords live only in the puck's NVS, entered on the device. This repo is public.
+4. **Keep the app under 3 MB** (partition `app3M_fat9M_16MB`). v2 is about 1.75 MB. `release.sh` fails the build if `firmware.bin` is too big. Avoid big images and fonts in flash.
 5. **Don't change the partition scheme or FQBN** in `release.sh`. A different layout breaks OTA on devices already in use.
 6. **Don't change the Wi-Fi AP name** `Puck-Home-Setup`.
-7. Keep the style simple and Notion-like: white background `#FFFFFF`, text `#37352F`, thin grey lines. The colors are in `ui_style.h`.
-8. Only edit `build_ui()` and `loop()` in `puck_home/puck_home.ino`, plus new files. Leave the display, touch and LVGL drivers alone unless you really need to.
-9. Don't call `Wire.begin()` again. `I2C_Init()` does it (SDA 11, SCL 10).
-10. Build and test with `./release.sh` only when the user asks to publish. To only check that it compiles, run the `arduino-cli compile` line from `release.sh`.
+7. Keep the style simple and Notion-like: white background `#FFFFFF`, text `#37352F`, thin grey lines. Colors and helpers (`ui_btn`, `ui_label`, `ui_title`, `ui_divider`) are in `ui_style.h`.
+8. Add new pages in `build_ui()` (one more `lv_tileview_add_tile`, raise `NPAGES` and the `dots[]` size) and refresh them from `loop()`. Leave the display, touch and LVGL drivers alone unless you really need to.
+9. Don't call `Wire.begin()` again. `I2C_Init()` does it (SDA 11, SCL 10). Use I2C only from the main loop/UI task.
+10. Never do slow work (network, file scans, `delay`) in LVGL callbacks. Post a request to the net task, like `wn_req_scan` does.
+
+## Build only (check that it compiles, publishes nothing)
+```
+arduino-cli compile --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc,FlashMode=qio,USBMode=hwcdc" \
+  --libraries repo/examples/Arduino-V3.2.0/libraries --output-dir build puck_home
+```
+The first time, run `./release.sh` once or clone the Waveshare libraries into `repo/` (see `release.sh`). You need core `esp32:esp32@3.2.0` and the `WiFiManager` library.
+
+## Release (only when the user asks to publish)
+1. `./release.sh` bumps the version by 1. `./release.sh 7` sets it to 7.
+2. It builds, then copies `dist/firmware.bin` (OTA), `dist/merged.bin` (USB flash at 0x0) and `dist/version.txt`.
+3. It commits, pushes and creates a GitHub release `vN` with those three files.
+4. Check with `curl -sL https://github.com/<owner>/puck-home/releases/latest/download/version.txt`. It must print the new number.
+5. The puck installs it on boot or when you tap Check update (Clock page or Settings > About).
