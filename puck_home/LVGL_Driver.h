@@ -9,7 +9,7 @@
 
 #define LCD_WIDTH     EXAMPLE_LCD_WIDTH
 #define LCD_HEIGHT    EXAMPLE_LCD_HEIGHT
-#define LVGL_BUF_LEN  (LCD_WIDTH * LCD_HEIGHT / 10)
+#define LVGL_BUF_LEN  (LCD_WIDTH * 40)   // 40 lines per strip, 2 buffers in internal RAM
 
 #define EXAMPLE_LVGL_TICK_PERIOD_MS  10
 
