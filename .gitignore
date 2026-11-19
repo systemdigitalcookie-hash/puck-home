@@ -1,0 +1,8 @@
+build/
+dist/
+repo/
+bin/
+*.elf
+*.map
+secrets.h
+.env
