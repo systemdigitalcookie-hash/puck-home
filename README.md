@@ -81,3 +81,10 @@ Waveshare's wiki and example code: <https://github.com/waveshareteam/ESP32-S3-To
 ## Changes
 - **v2**: Recorder page (record/pause/stop, recent list, detail screen with play/pause/progress/delete). It saves with exact error messages and repairs the header when only the size check disagrees. Louder mics and speaker: both mics are summed with a soft limiter, mic gain is 0-60 dB (default 42), volume reaches +12 dB, and playback has auto-gain. Settings with the on-device Wi-Fi picker and Storage. The clock now keeps time offline with the RTC.
 - **v1**: Wi-Fi portal, clock, OTA.
+
+## Changing the look (v3 pink theme)
+Everything about colours and shapes is in `puck_home/theme.h`:
+- Colours: `C_BG` (page), `C_CARD` (buttons), `C_TEXT`, `C_ACCENT` (rose pink), `C_HOT` (hot pink for record, bow knots and the active page dot).
+- Roundness: `T_RADIUS`, `T_RADIUS_PILL`. Dotted ring around the screen: `T_RING_DOTS`, `T_RING_R`.
+- Fonts: `T_FONT_S/M/L/XL/XXL` (Montserrat, built in).
+Change a value, build, and every page follows. The little hearts, bows, flowers and bunny ears are original drawings made by `python3 tools/gen_art.py` into `puck_home/art.h`. They are tinted by the theme colours, so recolouring needs no new art.

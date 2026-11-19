@@ -133,10 +133,9 @@ static void rd_open(int i) {
   lv_obj_t *pb = ui_btn(rd, 64, 64, LV_SYMBOL_PLAY, &rd_play_lbl);
   lv_obj_set_style_radius(pb, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_text_font(rd_play_lbl, &lv_font_montserrat_20, 0);
   lv_obj_align(pb, LV_ALIGN_TOP_MID, 0, 84); lv_obj_add_event_cb(pb, rd_play_cb, LV_EVENT_CLICKED, NULL);
-  rd_bar = lv_bar_create(rd); lv_obj_set_size(rd_bar, 200, 4); lv_obj_align(rd_bar, LV_ALIGN_TOP_MID, 0, 164);
+  rd_bar = lv_bar_create(rd); lv_obj_set_size(rd_bar, 200, 8); lv_obj_align(rd_bar, LV_ALIGN_TOP_MID, 0, 164);
   lv_bar_set_range(rd_bar, 0, 1000);
-  lv_obj_set_style_bg_color(rd_bar, lv_color_hex(C_DIV), LV_PART_MAIN); lv_obj_set_style_bg_opa(rd_bar, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(rd_bar, lv_color_hex(C_TEXT), LV_PART_INDICATOR);
+  theme_bar(rd_bar, 8);
   rd_time = ui_label(rd, &lv_font_montserrat_12, C_GREY, 220, ""); lv_obj_align(rd_time, LV_ALIGN_TOP_MID, 0, 174);
   // info rows
   const char *keys[2] = {"Stored", "Size"}; char vals[2][24];
@@ -209,14 +208,18 @@ static void ru_build(lv_obj_t *t0) {
   // READY: title, record button, recent list
   rp_ready = ru_panel(t0);
   ui_title(rp_ready, "Recorder");
-  lv_obj_t *rb = ui_btn(rp_ready, 64, 64, "", NULL);
-  lv_obj_set_style_radius(rb, LV_RADIUS_CIRCLE, 0); lv_obj_align(rb, LV_ALIGN_TOP_MID, 0, 58);
+  // heart-shaped record button: a big hot-pink heart with a cream dot
+  lv_obj_t *rb = lv_obj_create(rp_ready); lv_obj_remove_style_all(rb);
+  lv_obj_set_size(rb, 78, 71); lv_obj_align(rb, LV_ALIGN_TOP_MID, 0, 54);
+  lv_obj_add_flag(rb, LV_OBJ_FLAG_CLICKABLE); lv_obj_clear_flag(rb, LV_OBJ_FLAG_SCROLLABLE); lv_obj_set_ext_click_area(rb, 8);
+  lv_obj_set_style_translate_y(rb, 2, LV_STATE_PRESSED);
   lv_obj_add_event_cb(rb, ru_rec_cb, LV_EVENT_CLICKED, NULL);
+  theme_art(rb, &art_heart_big, C_HOT, LV_ALIGN_TOP_LEFT, 0, 0);
   lv_obj_t *dot = lv_obj_create(rb); lv_obj_remove_style_all(dot);
-  lv_obj_set_size(dot, 26, 26); lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0); lv_obj_set_style_bg_color(dot, lv_color_hex(C_RED), 0);
-  lv_obj_clear_flag(dot, LV_OBJ_FLAG_CLICKABLE); lv_obj_center(dot);
-  lv_obj_t *tl = ui_label(rp_ready, &lv_font_montserrat_12, C_GREY, 0, "Tap to record"); lv_obj_align(tl, LV_ALIGN_TOP_MID, 0, 128);
+  lv_obj_set_size(dot, 24, 24); lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0); lv_obj_set_style_bg_color(dot, lv_color_hex(C_CARD), 0);
+  lv_obj_clear_flag(dot, LV_OBJ_FLAG_CLICKABLE); lv_obj_align(dot, LV_ALIGN_TOP_MID, 0, 22);
+  lv_obj_t *tl = ui_label(rp_ready, T_FONT_S, C_GREY, 0, "Tap the heart to record"); lv_obj_align(tl, LV_ALIGN_TOP_MID, 0, 130);
   ui_divider(rp_ready, 236, 150);
   r_list = lv_obj_create(rp_ready); lv_obj_remove_style_all(r_list);
   lv_obj_set_size(r_list, 236, 180); lv_obj_align(r_list, LV_ALIGN_TOP_MID, 0, 151);
@@ -233,28 +236,28 @@ static void ru_build(lv_obj_t *t0) {
   r_dot = lv_obj_create(row); lv_obj_remove_style_all(r_dot);
   lv_obj_set_size(r_dot, 10, 10); lv_obj_set_style_radius(r_dot, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_bg_opa(r_dot, LV_OPA_COVER, 0);
   r_state = ui_label(row, &lv_font_montserrat_16, C_TEXT, 0, "Recording");
-  r_hs = ui_btn(rp_rec, 104, 104, LV_SYMBOL_AUDIO, NULL);   // plain mic badge when there is no character art
-  lv_obj_set_style_radius(r_hs, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_text_font(r_hs, &lv_font_montserrat_48, 0);
+  r_hs = ui_btn(rp_rec, 104, 104, LV_SYMBOL_AUDIO, NULL);   // pink mic badge with a little bow
+  lv_obj_set_style_radius(r_hs, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_bg_color(r_hs, lv_color_hex(C_SURF), 0); lv_obj_set_style_text_color(r_hs, lv_color_hex(C_HOT), 0); lv_obj_set_style_border_width(r_hs, 3, 0); lv_obj_set_style_text_font(r_hs, &lv_font_montserrat_48, 0);
   lv_obj_clear_flag(r_hs, LV_OBJ_FLAG_CLICKABLE); lv_obj_align(r_hs, LV_ALIGN_TOP_MID, 0, 72);
+  theme_bow(rp_rec, LV_ALIGN_TOP_MID, 30, 60);
   r_timer = ui_label(rp_rec, &lv_font_montserrat_48, C_TEXT, 0, "00:00"); lv_obj_align(r_timer, LV_ALIGN_TOP_MID, 0, 198);
-  r_bar = lv_bar_create(rp_rec); lv_obj_set_size(r_bar, 140, 4); lv_obj_align(r_bar, LV_ALIGN_TOP_MID, 0, 256);
+  r_bar = lv_bar_create(rp_rec); lv_obj_set_size(r_bar, 140, 8); lv_obj_align(r_bar, LV_ALIGN_TOP_MID, 0, 256);
   lv_bar_set_range(r_bar, 0, 100);
-  lv_obj_set_style_bg_color(r_bar, lv_color_hex(C_DIV), LV_PART_MAIN); lv_obj_set_style_bg_opa(r_bar, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(r_bar, lv_color_hex(C_TEXT), LV_PART_INDICATOR);
+  theme_bar(r_bar, 8);   // pink level bar
   r_pause_btn = ui_btn(rp_rec, 104, 42, LV_SYMBOL_PAUSE "  Pause", &r_pause_lbl);
   lv_obj_set_style_radius(r_pause_btn, 21, 0); lv_obj_align(r_pause_btn, LV_ALIGN_TOP_MID, -58, 270);
   lv_obj_add_event_cb(r_pause_btn, ru_pause_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *sl;
   r_stop_btn = ui_btn(rp_rec, 104, 42, "", &sl);
-  lv_label_set_recolor(sl, true); lv_label_set_text(sl, "#E03E3E " LV_SYMBOL_STOP "#  Stop");
+  lv_label_set_recolor(sl, true); lv_label_set_text(sl, C_RED_TXT " " LV_SYMBOL_STOP "#  Stop");
   lv_obj_set_style_radius(r_stop_btn, 21, 0); lv_obj_align(r_stop_btn, LV_ALIGN_TOP_MID, 58, 270);
   lv_obj_add_event_cb(r_stop_btn, ru_stop_cb, LV_EVENT_CLICKED, NULL);
 
   // SAVING
   rp_saving = ru_panel(t0);
   lv_obj_t *sp = lv_spinner_create(rp_saving, 1000, 60); lv_obj_set_size(sp, 56, 56); lv_obj_align(sp, LV_ALIGN_TOP_MID, 0, 118);
-  lv_obj_set_style_arc_color(sp, lv_color_hex(C_DIV), LV_PART_MAIN); lv_obj_set_style_arc_width(sp, 4, LV_PART_MAIN);
-  lv_obj_set_style_arc_color(sp, lv_color_hex(C_TEXT), LV_PART_INDICATOR); lv_obj_set_style_arc_width(sp, 4, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_color(sp, lv_color_hex(C_SURF), LV_PART_MAIN); lv_obj_set_style_arc_width(sp, 4, LV_PART_MAIN);
+  lv_obj_set_style_arc_color(sp, lv_color_hex(C_HOT), LV_PART_INDICATOR); lv_obj_set_style_arc_width(sp, 4, LV_PART_INDICATOR);
   lv_obj_t *sv = ui_label(rp_saving, &lv_font_montserrat_16, C_TEXT, 0, "Saving..."); lv_obj_align(sv, LV_ALIGN_TOP_MID, 0, 194);
   r_stage = ui_label(rp_saving, &lv_font_montserrat_12, C_GREY, 220, ""); lv_obj_align(r_stage, LV_ALIGN_TOP_MID, 0, 220);
 
@@ -262,7 +265,8 @@ static void ru_build(lv_obj_t *t0) {
   rp_saved = ru_panel(t0);
   lv_obj_t *ck = ui_btn(rp_saved, 64, 64, LV_SYMBOL_OK, NULL);
   lv_obj_set_style_radius(ck, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_text_font(ck, &lv_font_montserrat_20, 0);
-  lv_obj_clear_flag(ck, LV_OBJ_FLAG_CLICKABLE); lv_obj_align(ck, LV_ALIGN_TOP_MID, 0, 114);
+  lv_obj_set_style_text_color(ck, lv_color_hex(C_HOT), 0); lv_obj_clear_flag(ck, LV_OBJ_FLAG_CLICKABLE); lv_obj_align(ck, LV_ALIGN_TOP_MID, 0, 114);
+  theme_heart(rp_saved, -52, 120, true); theme_heart(rp_saved, 52, 120, true);
   r_saved_lbl = ui_label(rp_saved, &lv_font_montserrat_16, C_TEXT, 260, "Saved"); lv_obj_align(r_saved_lbl, LV_ALIGN_TOP_MID, 0, 194);
 
   // ERROR

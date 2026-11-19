@@ -14,7 +14,7 @@ static void wf_bars(lv_obj_t *p, int rssi, int x) {
   for (int i = 0; i < 4; i++) {
     lv_obj_t *b = lv_obj_create(p); lv_obj_remove_style_all(b);
     int h = 4 + i * 3; lv_obj_set_size(b, 3, h); lv_obj_align(b, LV_ALIGN_LEFT_MID, x + i * 5, 6 - h / 2);
-    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0); lv_obj_set_style_bg_color(b, lv_color_hex(i < lvl ? C_TEXT : C_DIV), 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0); lv_obj_set_style_bg_color(b, lv_color_hex(i < lvl ? C_HOT : C_DIV), 0);
     lv_obj_set_style_radius(b, 1, 0); lv_obj_clear_flag(b, LV_OBJ_FLAG_CLICKABLE);
   }
 }
@@ -83,8 +83,8 @@ static void wk_open(const char *ssid, bool need_pass, const char *saved_pass) {
   lv_textarea_set_one_line(wk_ta, true); lv_textarea_set_password_mode(wk_ta, true); lv_textarea_set_max_length(wk_ta, 63);
   lv_textarea_set_placeholder_text(wk_ta, "Password");
   lv_obj_set_style_text_font(wk_ta, &lv_font_montserrat_16, 0);
-  lv_obj_set_style_border_color(wk_ta, lv_color_hex(C_LINE), 0); lv_obj_set_style_border_width(wk_ta, 1, 0);
-  lv_obj_set_style_radius(wk_ta, 8, 0); lv_obj_set_style_bg_color(wk_ta, lv_color_hex(C_BG), 0);
+  lv_obj_set_style_border_color(wk_ta, lv_color_hex(C_ACCENT), 0); lv_obj_set_style_border_width(wk_ta, 2, 0);
+  lv_obj_set_style_radius(wk_ta, 14, 0); lv_obj_set_style_bg_color(wk_ta, lv_color_hex(C_CARD), 0);
   lv_obj_add_state(wk_ta, LV_STATE_FOCUSED);
   lv_obj_t *eye = ui_btn(wk_form, 40, 40, LV_SYMBOL_EYE_OPEN, &wk_eye_lbl);
   lv_obj_align(eye, LV_ALIGN_TOP_MID, 100, 54); lv_obj_add_event_cb(eye, wk_eye_cb, LV_EVENT_CLICKED, NULL);
@@ -92,16 +92,16 @@ static void wk_open(const char *ssid, bool need_pass, const char *saved_pass) {
   lv_obj_set_size(wk_kb, 284, 150); lv_obj_align(wk_kb, LV_ALIGN_TOP_MID, 0, 102);
   lv_keyboard_set_textarea(wk_kb, wk_ta);
   lv_obj_set_style_bg_color(wk_kb, lv_color_hex(C_SURF), 0); lv_obj_set_style_border_width(wk_kb, 0, 0);
-  lv_obj_set_style_pad_all(wk_kb, 3, 0); lv_obj_set_style_pad_gap(wk_kb, 3, 0); lv_obj_set_style_radius(wk_kb, 10, 0);
+  lv_obj_set_style_pad_all(wk_kb, 3, 0); lv_obj_set_style_pad_gap(wk_kb, 3, 0); lv_obj_set_style_radius(wk_kb, 14, 0);
   lv_obj_set_style_text_font(wk_kb, &lv_font_montserrat_14, LV_PART_ITEMS);
-  lv_obj_set_style_bg_color(wk_kb, lv_color_hex(C_BG), LV_PART_ITEMS); lv_obj_set_style_text_color(wk_kb, lv_color_hex(C_TEXT), LV_PART_ITEMS);
+  lv_obj_set_style_bg_color(wk_kb, lv_color_hex(C_CARD), LV_PART_ITEMS); lv_obj_set_style_text_color(wk_kb, lv_color_hex(C_TEXT), LV_PART_ITEMS);
   lv_obj_set_style_border_color(wk_kb, lv_color_hex(C_DIV), LV_PART_ITEMS); lv_obj_set_style_border_width(wk_kb, 1, LV_PART_ITEMS);
-  lv_obj_set_style_radius(wk_kb, 5, LV_PART_ITEMS); lv_obj_set_style_shadow_width(wk_kb, 0, LV_PART_ITEMS);
+  lv_obj_set_style_radius(wk_kb, 9, LV_PART_ITEMS); lv_obj_set_style_shadow_width(wk_kb, 0, LV_PART_ITEMS);
   lv_obj_add_event_cb(wk_kb, wk_kb_cb, LV_EVENT_READY, NULL); lv_obj_add_event_cb(wk_kb, wk_kb_cb, LV_EVENT_CANCEL, NULL);
   lv_obj_t *cb = ui_btn(wk_form, 96, 36, "Cancel", NULL); lv_obj_align(cb, LV_ALIGN_TOP_MID, -54, 262);
   lv_obj_add_event_cb(cb, wk_cancel_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *gl; lv_obj_t *gb = ui_btn(wk_form, 96, 36, "Connect", &gl); lv_obj_align(gb, LV_ALIGN_TOP_MID, 54, 262);
-  lv_obj_set_style_bg_color(gb, lv_color_hex(C_TEXT), 0); lv_obj_set_style_text_color(gl, lv_color_hex(C_BG), 0);
+  lv_obj_set_style_bg_color(gb, lv_color_hex(C_HOT), 0); lv_obj_set_style_border_color(gb, lv_color_hex(C_HOT), 0); lv_obj_set_style_text_color(gl, lv_color_hex(0xFFFFFF), 0);
   lv_obj_add_event_cb(gb, wk_go_cb, LV_EVENT_CLICKED, NULL);
   // busy / result view
   wk_busy = lv_obj_create(wk); lv_obj_remove_style_all(wk_busy); lv_obj_set_size(wk_busy, 360, 360);

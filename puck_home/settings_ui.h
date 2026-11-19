@@ -123,10 +123,9 @@ static lv_obj_t *mk_slider(int y, int lo, int hi, int v) {
   lv_obj_t *s = lv_slider_create(sub);
   lv_obj_set_size(s, 210, 6); lv_obj_align(s, LV_ALIGN_TOP_MID, 0, y);
   lv_slider_set_range(s, lo, hi); lv_slider_set_value(s, v, LV_ANIM_OFF);
-  lv_obj_set_style_bg_color(s, lv_color_hex(C_DIV), LV_PART_MAIN); lv_obj_set_style_bg_opa(s, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(s, lv_color_hex(C_TEXT), LV_PART_INDICATOR);
-  lv_obj_set_style_bg_color(s, lv_color_hex(C_BG), LV_PART_KNOB);
-  lv_obj_set_style_border_color(s, lv_color_hex(C_LINE), LV_PART_KNOB); lv_obj_set_style_border_width(s, 1, LV_PART_KNOB);
+  theme_bar(s, 8);   // pink track + fill
+  lv_obj_set_style_bg_color(s, lv_color_hex(C_CARD), LV_PART_KNOB); lv_obj_set_style_radius(s, LV_RADIUS_CIRCLE, LV_PART_KNOB);
+  lv_obj_set_style_border_color(s, lv_color_hex(C_HOT), LV_PART_KNOB); lv_obj_set_style_border_width(s, 3, LV_PART_KNOB);
   lv_obj_set_style_shadow_width(s, 0, LV_PART_KNOB); lv_obj_set_style_pad_all(s, 8, LV_PART_KNOB);
   lv_obj_set_style_outline_width(s, 0, LV_STATE_FOCUSED); lv_obj_set_style_outline_width(s, 0, LV_STATE_FOCUS_KEY);
   lv_obj_set_ext_click_area(s, 16);
@@ -247,10 +246,9 @@ static void sub_open(int kind) {
       sub_slider = mk_slider(128, 0, 20, g_mic_gain / 3);   // 0..60 dB in 3 dB steps
       lv_obj_add_event_cb(sub_slider, gain_cb, LV_EVENT_VALUE_CHANGED, NULL); lv_obj_add_event_cb(sub_slider, gain_cb, LV_EVENT_RELEASED, NULL);
       ui_label(sub, &lv_font_montserrat_12, C_GREY, 0, "Level"); lv_obj_align(lv_obj_get_child(sub, -1), LV_ALIGN_TOP_MID, 0, 158);
-      sub_bar = lv_bar_create(sub); lv_obj_set_size(sub_bar, 210, 6); lv_obj_align(sub_bar, LV_ALIGN_TOP_MID, 0, 178);
+      sub_bar = lv_bar_create(sub); lv_obj_set_size(sub_bar, 210, 8); lv_obj_align(sub_bar, LV_ALIGN_TOP_MID, 0, 178);
       lv_bar_set_range(sub_bar, 0, 100);
-      lv_obj_set_style_bg_color(sub_bar, lv_color_hex(C_DIV), LV_PART_MAIN); lv_obj_set_style_bg_opa(sub_bar, LV_OPA_COVER, LV_PART_MAIN);
-      lv_obj_set_style_bg_color(sub_bar, lv_color_hex(C_TEXT), LV_PART_INDICATOR);
+      theme_bar(sub_bar, 8);
       { lv_obj_t *t = ui_btn(sub, 150, 36, "Mic test", NULL); lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 200); lv_obj_add_event_cb(t, mic_test_cb, LV_EVENT_CLICKED, NULL); }
       sub_hint = ui_label(sub, &lv_font_montserrat_12, C_GREY, 220, "Records 3 s, then plays it back");
       lv_obj_align(sub_hint, LV_ALIGN_TOP_MID, 0, 248);

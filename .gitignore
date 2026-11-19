@@ -6,3 +6,4 @@ bin/
 *.map
 secrets.h
 .env
+mock/
