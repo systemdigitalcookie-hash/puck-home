@@ -1,0 +1,227 @@
+# Build the puck firmware, and publish a GitHub release only when that build succeeds.
+#
+# Pull requests run the build and the release-gate tests, then stop. They never
+# create a release. A push to main (or a manual run) publishes vN only when
+# puck_home/version.h is a higher number than the latest release.
+#
+# No personal token is required. Actions provides GITHUB_TOKEN. The release job
+# asks for contents: write so it can create the release. The build job cannot.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push can wait. Do not cancel a publish that is already uploading.
+concurrency:
+  group: puck-release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build firmware (pull requests do not release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test the release decision
+        run: bash tools/release_gate_test.sh
+
+      - name: Cache Arduino packages and Waveshare libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15/packages
+            ~/.arduino15/staging
+            ~/Arduino/libraries
+            repo
+          key: puck-arduino-${{ runner.os }}-cli-1.6.0-esp32-3.2.0-ws-5a98b8da1948340c07032a408ac0d93c47ca558f
+
+      - name: Install arduino-cli 1.6.0
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/bin"
+          curl -fsSL -o /tmp/arduino-cli.tar.gz \
+            https://github.com/arduino/arduino-cli/releases/download/v1.6.0/arduino-cli_1.6.0_Linux_64bit.tar.gz
+          tar -C "$HOME/bin" -xzf /tmp/arduino-cli.tar.gz arduino-cli
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/bin:$PATH"
+          arduino-cli version
+
+      - name: Install ESP32 core 3.2.0 and WiFiManager
+        run: |
+          set -euo pipefail
+          # The ESP32 boards are not in Arduino's default index. This is the
+          # extra step a computer needs before `arduino-cli core install`.
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.2.0
+          arduino-cli lib install WiFiManager
+          arduino-cli core list
+          arduino-cli lib list
+
+      - name: Compile and package (same board settings as release.sh)
+        id: pkg
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          SK=puck_home
+          # Keep these identical to release.sh. The checks below fail the job
+          # if that file is edited to a different board or a different merge.
+          FQBN=$(sed -n 's/^FQBN="\(.*\)"$/\1/p' release.sh)
+          WS_COMMIT=$(sed -n 's/^WS_COMMIT=\(.*\)$/\1/p' release.sh)
+          echo "FQBN=$FQBN"
+          echo "WS_COMMIT=$WS_COMMIT"
+          [ "$FQBN" = "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc,FlashMode=qio,USBMode=hwcdc" ]
+          [ "$WS_COMMIT" = "5a98b8da1948340c07032a408ac0d93c47ca558f" ]
+          grep -q -- '--build-property "compiler.optimization_flags=-O2"' release.sh
+          grep -q 'cp build/$SK.ino.bin dist/firmware.bin' release.sh
+          grep -q 'cp build/$SK.ino.merged.bin dist/merged.bin' release.sh
+
+          if [ ! -d repo/.git ] || [ "$(git -C repo rev-parse HEAD)" != "$WS_COMMIT" ]; then
+            rm -rf repo
+            git clone https://github.com/waveshareteam/ESP32-S3-Touch-LCD-1.85B repo
+            git -C repo checkout "$WS_COMMIT"
+          fi
+          [ "$(git -C repo rev-parse HEAD)" = "$WS_COMMIT" ]
+          [ -d repo/examples/Arduino-V3.2.0/libraries ]
+
+          VER=$(grep -oE '[0-9]+' $SK/version.h | head -1)
+          echo "Building v$VER"
+          rm -rf build
+          arduino-cli compile --fqbn "$FQBN" \
+            --build-property "compiler.optimization_flags=-O2" \
+            --libraries repo/examples/Arduino-V3.2.0/libraries \
+            --output-dir build $SK
+
+          mkdir -p dist
+          rm -f dist/*
+          cp build/$SK.ino.bin dist/firmware.bin
+          cp build/$SK.ino.merged.bin dist/merged.bin
+          printf '%s' "$VER" > dist/version.txt
+          SIZE=$(stat -c %s dist/firmware.bin 2>/dev/null || stat -f %z dist/firmware.bin)
+          echo "App size: $SIZE bytes (limit 3145728)"
+          [ "$SIZE" -lt 3145728 ] || { echo "App too big for the 3MB partition"; exit 1; }
+          # version.txt is the exact bytes the puck reads (no newline), same as release.sh.
+          [ "$(cat dist/version.txt)" = "$VER" ]
+
+          tar -C dist -czf puck-dist.tar.gz firmware.bin merged.bin version.txt
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Firmware v$VER"
+            echo "App size: $SIZE bytes (limit 3145728)."
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              echo "Dry run: this pull request builds the firmware and does not publish a release."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: puck-dist
+          path: puck-dist.tar.gz
+          if-no-files-found: error
+          retention-days: 5
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decide whether this version is newer
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER=$(grep -oE '[0-9]+' puck_home/version.h | head -1)
+          echo "Firmware version: $VER"
+          if ! tags_text=$(gh release list --limit 100 \
+                --json tagName,isDraft,isPrerelease \
+                --jq '.[] | select(.isDraft==false and .isPrerelease==false) | .tagName'); then
+            echo "Could not read existing releases. Not publishing."
+            exit 1
+          fi
+          # Also include the release GitHub marks latest, in case it is outside the list page.
+          if latest_one=$(gh release view --json tagName,isDraft,isPrerelease \
+                --jq 'select(.isDraft==false and .isPrerelease==false) | .tagName'); then
+            tags_text="${tags_text}"$'\n'"${latest_one}"
+          fi
+          mapfile -t TAGS <<< "$tags_text"
+          echo "Published release tags:"
+          printf '  %s\n' "${TAGS[@]:-none}"
+          if [ "${#TAGS[@]}" -eq 0 ] || [ -z "${TAGS[0]:-}" ]; then
+            decision=$(bash tools/release_gate.sh "$VER")
+          else
+            decision=$(bash tools/release_gate.sh "$VER" "${TAGS[@]}")
+          fi
+          echo "Decision: $decision"
+          echo "publish=$decision" >> "$GITHUB_OUTPUT"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if [ "$decision" != "publish" ]; then
+            echo "v$VER is not higher than the latest release. Leaving releases unchanged."
+            {
+              echo "### No release"
+              echo "v$VER is not higher than the latest published release, so nothing was published."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Download the build
+        if: steps.gate.outputs.publish == 'publish'
+        uses: actions/download-artifact@v4
+        with:
+          name: puck-dist
+          path: .
+
+      - name: Create release vN
+        if: steps.gate.outputs.publish == 'publish'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER="${{ steps.gate.outputs.version }}"
+          mkdir -p dist
+          tar -xzf puck-dist.tar.gz -C dist
+          test -s dist/firmware.bin
+          test -s dist/merged.bin
+          test -s dist/version.txt
+          [ "$(cat dist/version.txt)" = "$VER" ]
+          SIZE=$(stat -c %s dist/firmware.bin)
+          echo "App size: $SIZE bytes (limit 3145728)"
+          [ "$SIZE" -lt 3145728 ] || { echo "App too big for the 3MB partition"; exit 1; }
+          if gh release view "v$VER" >/dev/null 2>&1; then
+            echo "Release v$VER already exists. Refusing to replace it."
+            exit 1
+          fi
+          # --target is the commit this workflow built. --latest makes
+          # /releases/latest point here, which is what the puck downloads.
+          gh release create "v$VER" dist/version.txt dist/firmware.bin dist/merged.bin \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --latest \
+            --title "v$VER" \
+            --notes "Puck Home v$VER. First flash over USB: merged.bin at 0x0. After that the puck updates itself from firmware.bin."
+          echo "Published: https://github.com/$GITHUB_REPOSITORY/releases/tag/v$VER"
+          {
+            echo "### Published v$VER"
+            echo "App size: $SIZE bytes."
+            echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/v$VER"
+          } >> "$GITHUB_STEP_SUMMARY"

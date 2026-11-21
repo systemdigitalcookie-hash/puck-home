@@ -1,4 +1,4 @@
-// Puck Home v2: Recorder (with recordings), Clock, Settings (incl. Wi-Fi picker and Storage). OTA from GitHub releases.
+// Puck Home: Recorder, Face (start page), Clock, Settings. OTA from GitHub releases.
 // AI/beginners: read AGENTS.md before editing. Keep the OTA code (check_update / net_task) intact.
 #include "Display_ST77916.h"
 #include "LVGL_Driver.h"
@@ -107,7 +107,7 @@ static void fmt_dur(char *out, size_t n, uint32_t s) {
 }
 
 // ================= UI (edit / extend this part to build your own app) =================
-// Pages (swipe left/right): 0 Recorder, 1 Clock (start page), 2 Settings
+// Pages (swipe left/right): 0 Recorder, 1 Face (start page), 2 Clock, 3 Settings
 static lv_obj_t *tv, *dots[4], *lbl_clock, *lbl_date, *lbl_wifi, *lbl_stat;
 #define NPAGES 4
 #define PG_REC 0

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# One-command release:  ./release.sh      -> bump version by 1, build, commit, push, publish GitHub release
-#                       ./release.sh 5    -> use version 5 explicitly
+# One-command release from your computer:
+#   ./release.sh      -> bump version by 1, build, commit, push, publish GitHub release
+#   ./release.sh 5    -> use version 5 explicitly
 # Needs: git, gh (logged in: `gh auth login`), arduino-cli with esp32:esp32@3.2.0 (see README).
+# Pushing to main also publishes, via .github/workflows/release.yml, with no local gh login.
+# That workflow does not change the version number. This script does.
+# Keep the FQBN, -O2 flag, library checkout and dist/ copy below in sync with that workflow.
 set -euo pipefail
 cd "$(dirname "$0")"
 [ -x bin/arduino-cli ] && export PATH="$PWD/bin:$PATH"
