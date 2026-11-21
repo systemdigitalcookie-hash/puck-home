@@ -45,8 +45,14 @@ def clock():
     shadow_btn(im, (105, 252, 255, 292), 22); c(ImageDraw.Draw(im), "Check update", 272, F(14))
     for x in (82, 278):
         art(im, "flower_s", ACC, x-10, 262)
-    c(ImageDraw.Draw(im), "v3", 318, F(11), GREY)
+    c(ImageDraw.Draw(im), "v4", 318, F(11), GREY)
     dots(im, 1); ring(im); return im
+def face():
+    """Full-screen original plush face (no ring, dots, or other UI)."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
+    from gen_art import render_face_rgb
+    return render_face_rgb(1)
 def rec_ready():
     im = base(); d = ImageDraw.Draw(im)
     c(d, "Recorder", 44, F(20, True))
@@ -92,7 +98,7 @@ def wifi():
         if lock: d.rounded_rectangle((276, y-1, 284, y+7), 2, outline=GREY, width=2)
     shadow_btn(im, (115, 276, 245, 312), 18); c(ImageDraw.Draw(im), "Scan again", 294, F(14))
     ring(im); return im
-pages = [("Clock", clock()), ("Recorder", rec_ready()), ("Recording", rec_on()), ("Settings", settings()), ("Sound", settings_sound()), ("Wi-Fi", wifi())]
+pages = [("Face", face()), ("Clock", clock()), ("Recorder", rec_ready()), ("Settings", settings()), ("Sound", settings_sound()), ("Wi-Fi", wifi())]
 P = 14; W = 3*(S+2*P)+P; Hh = 2*(S+2*P+26)+P
 out = Image.new("RGB", (W, Hh), (252, 244, 247)); od = ImageDraw.Draw(out)
 for i, (n, im) in enumerate(pages):
@@ -101,3 +107,21 @@ for i, (n, im) in enumerate(pages):
     od.ellipse((cx-6, cy-6, cx+S+6, cy+S+6), fill=(60, 40, 48)); out.paste(im, (cx, cy), m)
     od.text((cx+S/2, cy+S+20), n, font=F(14), fill=TEXT, anchor="mm")
 p = os.path.join(R, "mock", "pink_v3.png"); out.save(p); print(p, out.size, os.path.getsize(p))
+
+# Standalone full-screen face preview (round mask), 2x
+def save_face_preview(path, scale=2):
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
+    from gen_art import render_face_rgb
+    src_im = render_face_rgb(scale)
+    W = S * scale
+    m = Image.new("L", (W, W), 0)
+    ImageDraw.Draw(m).ellipse((0, 0, W - 1, W - 1), fill=255)
+    rgba = src_im.convert("RGBA")
+    rgba.putalpha(m)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    rgba.save(path)
+    print(path, rgba.size, os.path.getsize(path))
+
+# Default preview path is overridden by PUCK_PREVIEW_PATH when set.
+save_face_preview(os.environ.get("PUCK_PREVIEW_PATH", os.path.join(R, "mock", "face_v2.png")), 2)

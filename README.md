@@ -2,8 +2,9 @@
 
 A tiny starter firmware for the **Waveshare ESP32-S3-Touch-LCD-1.85B** (a round 1.85" touch screen with a speaker, microphone and Wi-Fi).
 
-Swipe left/right between three pages:
+Swipe left/right between four pages:
 - **Recorder**: tap to record, Pause/Resume, Stop. It saves WAV files to the microSD card, or internal flash if there's no card. Recent recordings are listed below. Tap one to play, pause or delete it.
+- **Face** (start page): a full-screen cute face, nothing else.
 - **Clock**: a big clock in Malaysia time (MYT, UTC+8), with the Wi-Fi status, a Check update button and the version.
 - **Settings**: Sound (volume, test speaker), Microphone (gain, level meter, 3 s mic test), Display (brightness), Storage (where recordings go, free space, recording time left, count), Wi-Fi (pick a network, saved networks), Battery, and About (version, Check update).
 
@@ -79,6 +80,7 @@ Waveshare's wiki and example code: <https://github.com/waveshareteam/ESP32-S3-To
 - If updates stop working years from now, the HTTPS root certificates in `certs.h` may have expired. Ask an AI to refresh them.
 
 ## Changes
+- **v5**: New start page: a full-screen plush bunny face (cream background, big round eyes, pink nose, soft blush) drawn by `tools/gen_art.py`. Pages are now Recorder, Face, Clock, Settings (swipe right from the face for the Clock and Check update). The dotted ring and page dots are hidden on the face page.
 - **v2**: Recorder page (record/pause/stop, recent list, detail screen with play/pause/progress/delete). It saves with exact error messages and repairs the header when only the size check disagrees. Louder mics and speaker: both mics are summed with a soft limiter, mic gain is 0-60 dB (default 42), volume reaches +12 dB, and playback has auto-gain. Settings with the on-device Wi-Fi picker and Storage. The clock now keeps time offline with the RTC.
 - **v1**: Wi-Fi portal, clock, OTA.
 
