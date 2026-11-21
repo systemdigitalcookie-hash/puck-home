@@ -2,8 +2,9 @@
 
 A tiny starter firmware for the **Waveshare ESP32-S3-Touch-LCD-1.85B** (a round 1.85" touch screen with a speaker, microphone and Wi-Fi).
 
-Swipe left/right between three pages:
+Swipe left/right between four pages:
 - **Recorder**: tap to record, Pause/Resume, Stop. It saves WAV files to the microSD card, or internal flash if there's no card. Recent recordings are listed below. Tap one to play, pause or delete it.
+- **Face** (start page): a full-screen cute face, nothing else.
 - **Clock**: a big clock in Malaysia time (MYT, UTC+8), with the Wi-Fi status, a Check update button and the version.
 - **Settings**: Sound (volume, test speaker), Microphone (gain, level meter, 3 s mic test), Display (brightness), Storage (where recordings go, free space, recording time left, count), Wi-Fi (pick a network, saved networks), Battery, and About (version, Check update).
 
@@ -27,7 +28,7 @@ It's a clean base. You can ask an AI coding tool to build apps on top of it, and
 2. Choose your home Wi-Fi, enter the password and save. That network is also added to the saved list.
 
 ## 3. Updates
-The puck checks for a newer version when it starts, and whenever you tap **Check update**. If the newest release has a higher number than the puck's version, it downloads `firmware.bin`, installs it and restarts.
+The puck checks for a newer version when it starts, and whenever you tap **Check update**. If the newest release has a higher number than the puck's version, it downloads `firmware.bin`, installs it and restarts. The face is the start page, so swipe right once to the Clock page for that button (it is also under Settings > About).
 
 ## 4. Build your own app with AI
 The pages are built in `build_ui()` in `puck_home/puck_home.ino` and refreshed in `loop()`. The Recorder is in `recorder_ui.h` and Settings in `settings_ui.h`. `AGENTS.md` lists every file.
@@ -35,27 +36,36 @@ The pages are built in `build_ui()` in `puck_home/puck_home.ino` and refreshed i
 1. Install an AI coding tool such as Cursor, Claude Code or Codex.
 2. Open this repo's folder in it. It reads `AGENTS.md`, which has the rules.
 3. Ask for what you want, for example: *"Add a page with a timer I can start and stop by touch."*
-4. Run `./release.sh`. It builds, publishes a new release, and the puck updates on its next check.
+4. Raise the number in `puck_home/version.h` and merge that change to `main`. GitHub Actions builds it and publishes the release. You do not need `gh auth login` for this. The puck updates on its next check, or when you tap Check update.
+
+### Releases from GitHub (no local login)
+`.github/workflows/release.yml` runs on every push to `main`, and when you start it by hand from the Actions tab. It installs arduino-cli, the ESP32 core `esp32:esp32@3.2.0`, WiFiManager and the same Waveshare libraries as `release.sh`, then compiles with the same board settings and the `-O2` flag. If `firmware.bin` is 3 MB or bigger, the build fails. A failed build never creates a release.
+
+When the build works and the number in `puck_home/version.h` is higher than the latest release, the Action publishes `vN` with `firmware.bin`, `merged.bin` and `version.txt`. It uses the token GitHub gives the Action (`GITHUB_TOKEN`). You do not create a token or add a secret. On a pull request the same workflow only builds, so you can see that it compiles before merging. The Action does not change the version number. Bump `puck_home/version.h` in the change you merge.
 
 ### Computer setup (Mac or Linux)
+Only needed if you want to compile or publish from your own computer. Publishing from GitHub does not need this.
 ```
-# 1. GitHub CLI, logged in to YOUR account
+# 1. Tools. `gh auth login` is only for ./release.sh, not for the GitHub Action.
 brew install gh git arduino-cli      # Mac. On Linux, use your package manager
 gh auth login
-# 2. ESP32 core (exactly this version)
+# 2. ESP32 core (exactly this version) and WiFiManager
+arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+arduino-cli core update-index
 arduino-cli core install esp32:esp32@3.2.0
+arduino-cli lib install WiFiManager
 # 3. Your own copy of this repo (fork it, or create a new repo and push this folder)
 gh repo fork systemdigitalcookie-hash/puck-home --clone && cd puck-home
 ```
 Then **change `OTA_REPO` in `puck_home/puck_home.ino`** to your repo, `yourname/puck-home`, and flash once over USB. Otherwise your puck will keep updating from the original.
 
-`./release.sh` runs these steps:
+`./release.sh` is the local way to publish. It needs `gh auth login`. It runs these steps:
 1. Raises the number in `puck_home/version.h` by 1. `./release.sh 7` sets it to 7.
 2. Compiles with the right board settings (16 MB flash, PSRAM, partition `app3M_fat9M_16MB`).
 3. Makes `dist/firmware.bin` (used for updates), `dist/merged.bin` (full image for USB) and `dist/version.txt`.
 4. Commits, pushes, and creates a GitHub release with all three files.
 
-To check that it compiles without publishing, run the `arduino-cli compile ...` line inside `release.sh`.
+To check that it compiles without publishing, run the `arduino-cli compile ...` line inside `release.sh`, or open a pull request and let the Action build it.
 
 ## Board reference
 | Part | Chip | Details |
@@ -79,6 +89,7 @@ Waveshare's wiki and example code: <https://github.com/waveshareteam/ESP32-S3-To
 - If updates stop working years from now, the HTTPS root certificates in `certs.h` may have expired. Ask an AI to refresh them.
 
 ## Changes
+- **v5**: New start page: a full-screen plush bunny face (cream background, big round eyes, pink nose, soft blush) drawn by `tools/gen_art.py`. Pages are now Recorder, Face, Clock, Settings (swipe right from the face for the Clock and Check update). The dotted ring and page dots are hidden on the face page.
 - **v2**: Recorder page (record/pause/stop, recent list, detail screen with play/pause/progress/delete). It saves with exact error messages and repairs the header when only the size check disagrees. Louder mics and speaker: both mics are summed with a soft limiter, mic gain is 0-60 dB (default 42), volume reaches +12 dB, and playback has auto-gain. Settings with the on-device Wi-Fi picker and Storage. The clock now keeps time offline with the RTC.
 - **v1**: Wi-Fi portal, clock, OTA.
 

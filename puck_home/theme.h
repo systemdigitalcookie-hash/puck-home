@@ -19,6 +19,11 @@
 #define C_RED     C_HOT      // "record / stop / error" colour (kept pink on purpose)
 #define C_BUTTER  0xFFE082   // flower centres
 #define C_RED_TXT "#EC407A"  // same as C_HOT, as text for coloured labels
+#define C_CREAM   0xFFF6E3   // warm cream face background (start page)
+#define C_EYE     0x1A1A1A   // solid near-black eyes
+#define C_NOSE    0xF4A0B0   // soft pink rounded-triangle nose
+#define C_MOUTH   0x8A6E79   // grey-mauve muzzle
+#define C_BLUSH   0xF4B6C8   // faint cheek blush
 
 // ---- shape ----
 #define T_RADIUS      18     // buttons and cards
@@ -57,7 +62,20 @@ static void theme_bunny_ears(lv_obj_t *p, int y) {   // original bunny-ear motif
   theme_art(p, &art_ears, C_ACCENT, LV_ALIGN_TOP_MID, 0, y);
   theme_art(p, &art_ears_in, C_SURF, LV_ALIGN_TOP_MID, 0, y);
 }
-// Dotted border ring around the round screen. Lives on the top layer so every page shows it.
+// Original full-screen plush face for the start page: cream field, wide round
+// eyes, pink rounded-triangle nose, two-curve Y mouth. No ears, hood, or outline.
+static void theme_face(lv_obj_t *p) {
+  lv_obj_set_style_bg_color(p, lv_color_hex(C_CREAM), 0);
+  lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
+  theme_art(p, &art_face_blush, C_BLUSH, LV_ALIGN_TOP_LEFT, ART_face_blush_X, ART_face_blush_Y);
+  theme_art(p, &art_face_eyes,  C_EYE,   LV_ALIGN_TOP_LEFT, ART_face_eyes_X,  ART_face_eyes_Y);
+  theme_art(p, &art_face_hi,    0xFFFFFF,LV_ALIGN_TOP_LEFT, ART_face_hi_X,    ART_face_hi_Y);
+  theme_art(p, &art_face_nose,  C_NOSE,  LV_ALIGN_TOP_LEFT, ART_face_nose_X,  ART_face_nose_Y);
+  theme_art(p, &art_face_mouth, C_MOUTH, LV_ALIGN_TOP_LEFT, ART_face_mouth_X, ART_face_mouth_Y);
+}
+// Dotted border ring around the round screen. Lives on the top layer so every
+// page can show it; hidden on the face start page for a clean cover.
+static lv_obj_t *theme_ring_dots[T_RING_DOTS];
 static void theme_ring() {
   for (int i = 0; i < T_RING_DOTS; i++) {
     float a = i * 6.2831853f / T_RING_DOTS;
@@ -67,6 +85,13 @@ static void theme_ring() {
     lv_obj_set_style_bg_color(d, lv_color_hex(i % 4 == 0 ? C_ACCENT : C_LINE), 0);
     lv_obj_clear_flag(d, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_pos(d, 178 + (int)(T_RING_R * cosf(a)), 178 + (int)(T_RING_R * sinf(a)));
+    theme_ring_dots[i] = d;
+  }
+}
+static void theme_set_ring(bool show) {
+  for (int i = 0; i < T_RING_DOTS; i++) {
+    if (show) lv_obj_clear_flag(theme_ring_dots[i], LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(theme_ring_dots[i], LV_OBJ_FLAG_HIDDEN);
   }
 }
 // Pink progress/level bar and slider look (used by recorder, settings, playback)

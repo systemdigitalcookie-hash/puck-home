@@ -1,4 +1,4 @@
-// Puck Home v2: Recorder (with recordings), Clock, Settings (incl. Wi-Fi picker and Storage). OTA from GitHub releases.
+// Puck Home: Recorder, Face (start page), Clock, Settings. OTA from GitHub releases.
 // AI/beginners: read AGENTS.md before editing. Keep the OTA code (check_update / net_task) intact.
 #include "Display_ST77916.h"
 #include "LVGL_Driver.h"
@@ -107,16 +107,22 @@ static void fmt_dur(char *out, size_t n, uint32_t s) {
 }
 
 // ================= UI (edit / extend this part to build your own app) =================
-// Pages (swipe left/right): 0 Recorder, 1 Clock (start page), 2 Settings
-static lv_obj_t *tv, *dots[3], *lbl_clock, *lbl_date, *lbl_wifi, *lbl_stat;
-#define NPAGES 3
-#define PG_CLOCK 1
-#define PG_SETTINGS 2
+// Pages (swipe left/right): 0 Recorder, 1 Face (start page), 2 Clock, 3 Settings
+static lv_obj_t *tv, *dots[4], *lbl_clock, *lbl_date, *lbl_wifi, *lbl_stat;
+#define NPAGES 4
+#define PG_REC 0
+#define PG_FACE 1
+#define PG_CLOCK 2
+#define PG_SETTINGS 3
 static bool ui_settled = true;   // v4: tileview at rest (not mid-swipe); slow SD/I2C work waits for this
 static bool lock_rec = false;   // no page swipes while recording / saving
 static void nav_apply() { if (lock_rec) lv_obj_clear_flag(tv, LV_OBJ_FLAG_SCROLLABLE); else lv_obj_add_flag(tv, LV_OBJ_FLAG_SCROLLABLE); }
 #include "recorder_ui.h"
 #include "settings_ui.h"
+
+static void build_face(lv_obj_t *t) {   // Start page: only the original plush face, no other UI
+  theme_face(t);
+}
 
 static void build_clock(lv_obj_t *t) {   // Li Li's clock page: big soft clock, bunny ears, hearts and a bow
   theme_bunny_ears(t, 22);
@@ -154,20 +160,24 @@ static void build_ui() {
   lv_obj_set_scrollbar_mode(tv, LV_SCROLLBAR_MODE_OFF);
   lv_obj_t *t0 = lv_tileview_add_tile(tv, 0, 0, LV_DIR_RIGHT);
   lv_obj_t *t1 = lv_tileview_add_tile(tv, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
-  lv_obj_t *t2 = lv_tileview_add_tile(tv, 2, 0, LV_DIR_LEFT);
+  lv_obj_t *t2 = lv_tileview_add_tile(tv, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+  lv_obj_t *t3 = lv_tileview_add_tile(tv, 3, 0, LV_DIR_LEFT);
 
   for (int i = 0; i < NPAGES; i++) {   // page dots (created first: sub-screens hide them)
     dots[i] = lv_obj_create(lv_layer_top()); lv_obj_remove_style_all(dots[i]);
     lv_obj_set_size(dots[i], 6, 6); lv_obj_set_style_radius(dots[i], LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_opa(dots[i], LV_OPA_COVER, 0);
     lv_obj_clear_flag(dots[i], LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(dots[i], LV_ALIGN_TOP_MID, (i - 1) * 14, 332);
+    lv_obj_align(dots[i], LV_ALIGN_TOP_MID, -21 + i * 14, 332);
+    lv_obj_add_flag(dots[i], LV_OBJ_FLAG_HIDDEN);   // start page is the face: hide chrome
   }
   theme_ring();         // dotted pink border ring (theme.h)
+  theme_set_ring(false);
   ru_build(t0);         // recorder + recent recordings (recorder_ui.h)
-  build_clock(t1);
-  settings_build(t2);   // Sound, Microphone, Display, Storage, Wi-Fi, Battery, About (settings_ui.h)
-  lv_obj_set_tile_id(tv, PG_CLOCK, 0, LV_ANIM_OFF);
+  build_face(t1);
+  build_clock(t2);
+  settings_build(t3);   // Sound, Microphone, Display, Storage, Wi-Fi, Battery, About (settings_ui.h)
+  lv_obj_set_tile_id(tv, PG_FACE, 0, LV_ANIM_OFF);
 }
 
 static void clock_tick() {   // 1 Hz
@@ -211,11 +221,22 @@ void loop() {
     last_ui = now;
     int page = (sx + 180) / 360; if (page < 0) page = 0; if (page > NPAGES - 1) page = NPAGES - 1;
     static int dots_page = -1;   // v4: restyle dots only when the page changes
-    if (page != dots_page) { dots_page = page; for (int i = 0; i < NPAGES; i++) lv_obj_set_style_bg_color(dots[i], lv_color_hex(i == page ? C_HOT : C_LINE), 0); }
+    if (page != dots_page) {
+      dots_page = page;
+      bool on_face = (page == PG_FACE);
+      theme_set_ring(!on_face);
+      for (int i = 0; i < NPAGES; i++) {
+        if (on_face) lv_obj_add_flag(dots[i], LV_OBJ_FLAG_HIDDEN);
+        else {
+          lv_obj_clear_flag(dots[i], LV_OBJ_FLAG_HIDDEN);
+          lv_obj_set_style_bg_color(dots[i], lv_color_hex(i == page ? C_HOT : C_LINE), 0);
+        }
+      }
+    }
     if (page != last_page) {
       last_page = page; want_slow = true;   // v4: page work runs once the swipe settles, not mid-swipe
-      if (page == 0 && millis() - list_t > 300000) list_dirty = true;   // only re-read the SD folder if the list is stale
-      if (page != 0 && rd) rd_close();
+      if (page == PG_REC && millis() - list_t > 300000) list_dirty = true;   // only re-read the SD folder if the list is stale
+      if (page != PG_REC && rd) rd_close();
     }
     if (strcmp(shown_stat, status_txt)) { snprintf(shown_stat, sizeof shown_stat, "%s", status_txt); lv_label_set_text(lbl_stat, shown_stat); }
     if (!ota_lbl) shown_ota[0] = 0;
