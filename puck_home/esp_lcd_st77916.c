@@ -38,6 +38,7 @@ static esp_err_t panel_st77916_mirror(esp_lcd_panel_t *panel, bool mirror_x, boo
 static esp_err_t panel_st77916_swap_xy(esp_lcd_panel_t *panel, bool swap_axes);
 static esp_err_t panel_st77916_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap);
 static esp_err_t panel_st77916_disp_on_off(esp_lcd_panel_t *panel, bool off);
+static esp_err_t panel_st77916_disp_sleep(esp_lcd_panel_t *panel, bool sleep);
 
 typedef struct {
     esp_lcd_panel_t base;
@@ -118,6 +119,7 @@ esp_err_t esp_lcd_new_panel_st77916(const esp_lcd_panel_io_handle_t io, const es
     st77916->base.mirror = panel_st77916_mirror;
     st77916->base.swap_xy = panel_st77916_swap_xy;
     st77916->base.disp_on_off = panel_st77916_disp_on_off;
+    st77916->base.disp_sleep = panel_st77916_disp_sleep;   // screen button: SLPIN/SLPOUT
     *ret_panel = &(st77916->base);
     ESP_LOGD(TAG, "new st77916 panel @%p", st77916);
 
@@ -1032,5 +1034,14 @@ static esp_err_t panel_st77916_disp_on_off(esp_lcd_panel_t *panel, bool on_off)
         command = LCD_CMD_DISPOFF;
     }
     ESP_RETURN_ON_ERROR(tx_param(st77916, io, command, NULL, 0), TAG, "send command failed");
+    return ESP_OK;
+}
+
+// Screen button: panel sleep in (0x10) / sleep out (0x11). The panel keeps its settings; it needs 120 ms after sleep out.
+static esp_err_t panel_st77916_disp_sleep(esp_lcd_panel_t *panel, bool sleep)
+{
+    st77916_panel_t *st77916 = __containerof(panel, st77916_panel_t, base);
+    ESP_RETURN_ON_ERROR(tx_param(st77916, st77916->io, sleep ? LCD_CMD_SLPIN : LCD_CMD_SLPOUT, NULL, 0), TAG, "send command failed");
+    vTaskDelay(pdMS_TO_TICKS(sleep ? 10 : 120));
     return ESP_OK;
 }

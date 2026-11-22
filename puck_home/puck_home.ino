@@ -119,6 +119,16 @@ static bool lock_rec = false;   // no page swipes while recording / saving
 static void nav_apply() { if (lock_rec) lv_obj_clear_flag(tv, LV_OBJ_FLAG_SCROLLABLE); else lv_obj_add_flag(tv, LV_OBJ_FLAG_SCROLLABLE); }
 #include "recorder_ui.h"
 #include "settings_ui.h"
+#include "screen_btn.h"
+
+// v6 screen button (BOOT): short press = screen off/on, long press = close whatever is open and go to the face page
+static void btn_before_off() {}
+static void btn_home() {
+  if (rd) rd_close();                                // recording detail (stops playback)
+  sub_close();                                       // Settings sub-screen, Wi-Fi picker/keyboard, mic test
+  if (ru == RU_ERROR) ru_set(RU_READY);
+  if (!lock_rec) lv_obj_set_tile_id(tv, PG_FACE, 0, LV_ANIM_OFF);   // a running recording keeps its page
+}
 
 static void build_face(lv_obj_t *t) {   // Start page: only the original plush face, no other UI
   theme_face(t);
@@ -204,6 +214,7 @@ void setup() {
   build_ui();
   settings_load();   // volume, mic gain, brightness from NVS (before rec_init so the gain applies)
   rec_init();
+  sb_init();
   xTaskCreate(net_task, "net", 12288, NULL, 1, NULL);
 }
 
@@ -211,6 +222,7 @@ void loop() {
   static char shown_stat[96], shown_ota[96];
   static int last_page = -1;
   static uint32_t last_fast = 0, last_ui = 0, last_slow = 0;
+  sb_poll();   // v6 screen button
   uint32_t now = millis();
   int sx = lv_obj_get_scroll_x(tv);
   bool settled = sx % 360 == 0;
@@ -248,6 +260,6 @@ void loop() {
     if (settled) { want_slow = false; if (last_page == PG_SETTINGS) settings_summaries(); }
     sub_refresh();
   }
-  Lvgl_Loop();
-  vTaskDelay(pdMS_TO_TICKS(5));
+  if (!sb_off) Lvgl_Loop();   // v6: screen off -> no LVGL redraw and no touch reads
+  vTaskDelay(pdMS_TO_TICKS(sb_off ? 10 : 5));
 }

@@ -608,3 +608,11 @@ void Set_Backlight(uint8_t Light)
     ledcWrite(LCD_Backlight_PIN, Backlight);
   }
 }
+
+// Screen button: true = panel awake and showing, false = display off + sleep (backlight is handled by the caller)
+void LCD_Power(bool on)
+{
+  if (!panel_handle) return;
+  if (on) { esp_lcd_panel_disp_sleep(panel_handle, false); esp_lcd_panel_disp_on_off(panel_handle, true); }
+  else    { esp_lcd_panel_disp_on_off(panel_handle, false); esp_lcd_panel_disp_sleep(panel_handle, true); }
+}
