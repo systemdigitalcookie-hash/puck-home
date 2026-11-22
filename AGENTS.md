@@ -19,6 +19,9 @@ This is firmware for a Waveshare ESP32-S3-Touch-LCD-1.85B (round 360x360 touch s
   - Long press (0.8 s): closes the recording detail, Settings sub-screens and the Wi-Fi keyboard, clears a recorder error and goes to the Face page (stays on Recorder while recording). If the screen is off, a long press only turns it on.
   - GPIO0 is only read, never driven, so holding BOOT while plugging in still enters USB download mode. The other key (PWR) is wired to the power latch, not to a GPIO.
 
+## What's in v7
+- `check_update()` says "No Wi-Fi - Settings > Wi-Fi" instead of trying when offline, retries version.txt 3 times (2 s apart), and on failure shows `Check failed (<http>, tls <code>, <K>)`: the HTTP code, the mbedTLS error and the largest free internal RAM block. The update flow itself is unchanged.
+
 ## Pages and files
 - Swipe pages: **Recorder** (left), **Face** (start page), **Clock**, **Settings** (right).
 - `recorder.cpp/.h`: microphone (ES7210) recording to WAV on the SD card (or internal flash), playback through the speaker (ES8311 + amp on GPIO9), save checks with exact error messages.

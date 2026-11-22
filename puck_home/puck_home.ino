@@ -40,10 +40,15 @@ static void ensure_tz() {
 
 static void check_update() {
   if (rec.state != REC_IDLE) { snprintf(status_txt, sizeof status_txt, "Stop recording first"); return; }
+  if (WiFi.status() != WL_CONNECTED) { snprintf(status_txt, sizeof status_txt, "No Wi-Fi - Settings > Wi-Fi"); return; }   // v7: was "Check failed (-1)"
   snprintf(status_txt, sizeof status_txt, "Checking...");
   WiFiClientSecure c; c.setCACert(GH_ROOT_CAS);   // TLS validated against pinned roots (certs.h)
-  HTTPClient h; h.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); h.begin(c, String(OTA_BASE) + "/version.txt");
-  int code = h.GET(); int remote = code == 200 ? h.getString().toInt() : -1; h.end();
+  int code = -1, remote = -1;
+  for (int attempt = 0; attempt < 3 && code != 200; attempt++) {   // v7: retry a flaky connection (2 s apart)
+    if (attempt) vTaskDelay(pdMS_TO_TICKS(2000));
+    HTTPClient h; h.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); h.begin(c, String(OTA_BASE) + "/version.txt");
+    code = h.GET(); remote = code == 200 ? h.getString().toInt() : -1; h.end();
+  }
   if (remote > FW_VERSION) {
     snprintf(status_txt, sizeof status_txt, "Updating to v%d...", remote);
     httpUpdate.rebootOnUpdate(true);
@@ -51,7 +56,11 @@ static void check_update() {
     httpUpdate.update(c, String(OTA_BASE) + "/firmware.bin");
     snprintf(status_txt, sizeof status_txt, "Update failed");
   } else if (code == 200) snprintf(status_txt, sizeof status_txt, "Up to date");
-  else snprintf(status_txt, sizeof status_txt, "Check failed (%d)", code);
+  else {   // v7: say why (TLS error code + free internal RAM) so a failure can be diagnosed from the screen
+    char te[64]; int tls = c.lastError(te, sizeof te);
+    Serial.printf("[ota] check failed http=%d tls=%d %s heap=%u\n", code, tls, te, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    snprintf(status_txt, sizeof status_txt, "Check failed (%d, tls %d, %uK)", code, tls, (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024));
+  }
 }
 
 static void net_task(void *) {
